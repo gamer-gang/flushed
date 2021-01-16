@@ -5,9 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "NODE_ENV=development NODEMON=true webpack --watch",
-    "prod": "yarn build:prod && yarn start:prod",
-    "build:prod": "NODE_ENV=production webpack",
-    "start:prod": "node dist"
+    "build": "NODE_ENV=production webpack",
+    "start": "node dist/main"
   },
   "devDependencies": {
     "@types/express": "^4.17.11",
