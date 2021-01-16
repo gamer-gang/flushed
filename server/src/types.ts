@@ -4,6 +4,8 @@ export class GameState {
   stack: Card[] = [];
   turn = 0;
   started = false;
+  direction = 1;
+  cardQuantity = 1;
 }
 
 export class Player {

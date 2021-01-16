@@ -1,4 +1,9 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 // import type { SnowpackUserConfig } from 'snowpack';
+const dotenv = require('dotenv');
+const path = require('path');
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // export default <SnowpackUserConfig>{
 /** @type {require('snowpack').SnowpackUserConfig} */
