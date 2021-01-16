@@ -1,34 +1,15 @@
 <script lang="ts">
-  import type { AxiosResponse } from 'axios';
-  import axios from 'axios';
-  import qs from 'qs';
-  import { io } from 'socket.io-client';
-  import { querystring } from 'svelte-spa-router';
   import { fade } from 'svelte/transition';
-  import type { GameState } from '../../../server/src/types';
   import PlayDialog from '../components/PlayDialog.svelte';
-  import { game, gameId, spectator } from '../game';
+  import { game, gameId, socket, spectator } from '../data';
+  import type { GameState } from '../data';
 
-  const endpoint = import.meta.env.SNOWPACK_PUBLIC_API_URL;
-
-  const socket = io(endpoint, { transports: ['websocket', 'polling'] });
-
-  let promise: Promise<AxiosResponse<any>>;
-
-  if ($querystring) {
-    const parsed = qs.parse($querystring!);
-    if (parsed.id) $gameId = parsed.id.toString();
-  } else {
-    promise = axios.get(`${endpoint}/api/generate-room-code`);
-  }
-
-  $: inGame = $gameId;
   $: console.log('id change: ' + $gameId);
   $: console.log('game state change:'), console.log($game);
   $: console.log('spectate change: ' + $spectator);
 
   socket.on('connect', () => {
-    console.log('connectedP');
+    console.log('connected');
     // socket.emit('room-connect', { id: 'asdasdasdasd' });
   });
 
@@ -50,14 +31,8 @@
 </script>
 
 <div id="play" in:fade={{ duration: 100 }}>
-  {#if !inGame}
-    {#if promise}
-      {#await promise then res}
-        <PlayDialog createId={res.data.id} />
-      {/await}
-    {:else}
-      <PlayDialog createId={'adasdasdasdasda'} />
-    {/if}
+  {#if !$game?.started}
+    <PlayDialog />
   {:else}
     {#key $game}
       <pre>{JSON.stringify($game, null, 2)}</pre>

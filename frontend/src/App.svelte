@@ -5,13 +5,15 @@
   import AppBar from './components/AppBar.svelte';
   import Loading from './components/Loading.svelte';
   import Home from './pages/Home.svelte';
+  import Play from './pages/Play.svelte';
 
   const routes: RouteDefinition = {
     '/': Home,
-    '/play': wrap({
-      asyncComponent: () => import('./pages/Play.svelte'),
-      loadingComponent: Loading,
-    }),
+    '/play': Play,
+    // wrap({
+    // asyncComponent: () => import('./pages/Play.svelte'),
+    // loadingComponent: Loading,
+    // }),
     '*': wrap({
       asyncComponent: () => import('./pages/NotFound.svelte'),
       loadingComponent: Loading,

@@ -1,13 +1,23 @@
 <script lang="ts">
-  export let createId: string;
+  import { socket } from '../data';
+
+  let createName: string;
+  let joinName: string;
+  let joinId: string;
+
+  const create = () => {
+    socket.emit('room-create', { name: createName });
+  };
+  const join = () => {
+    socket.emit('room-connect', { id: joinId, name: joinName });
+  };
 </script>
 
 <section>
   <div class="create">
     <h4>Create game</h4>
-    <input value={`${window.location.protocol}${window.location.hostname}/#play?id=${createId}`} />
-    <button>Copy</button>
-    <ul />
+    <input placeholder="Your name" bind:value={createName} />
+    <button on:click={create}>Create</button>
   </div>
   <div class="divider">
     <div class="line" />
@@ -16,12 +26,15 @@
   </div>
   <div class="join">
     <h4>Join game</h4>
-    <input placeholder="Code" />
-    <button>Join</button>
+    <input placeholder="Your name" bind:value={joinName} />
+    <input placeholder="Code" bind:value={joinId} />
+    <button on:click={join}>Join</button>
   </div>
 </section>
 
 <style lang="scss">
+  @import '../colors';
+
   section {
     display: flex;
     & > * {
@@ -34,6 +47,10 @@
     .join {
       & > * {
         margin: 8px 0;
+      }
+      input {
+        max-width: 200px;
+        font-size: 0.85rem;
       }
       width: auto;
       flex-grow: 1;
@@ -58,8 +75,8 @@
         background-color: cool-gray(400);
       }
     }
-    width: 400px;
-    height: 450px;
+    width: 500px;
+    height: 250px;
     padding-top: 64px;
   }
 </style>

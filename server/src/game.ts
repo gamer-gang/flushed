@@ -4,7 +4,7 @@ import { Server as HttpServer } from 'http';
 import _ from 'lodash';
 import { nanoid } from 'nanoid';
 import { Server, Socket } from 'socket.io';
-import { Card, cardSuits, cardValues, GameState, Player } from '../../server/src/types';
+import { Card, cardSuits, cardValues, GameState, Player } from '../../frontend/src/data';
 
 export class GameServer {
   public static readonly port: number = parseInt(process.env.PORT || '8080');
@@ -39,12 +39,12 @@ export class GameServer {
       });
 
       // player attempts to join a room
-      socket.on('room-connect', ({ id }: { id: string }) => {
+      socket.on('room-connect', ({ id, name }: { id: string; name?: string }) => {
         const game: GameState | undefined = this.state.get(id);
         // if game doesnt exist, send err
         if (!game) return socket.emit('error', { error: 'Room connect: invalid room code' });
         if (!game.started && game.players.length < 4) {
-          game.players.push(new Player(socket.id));
+          game.players.push(new Player(socket.id, name));
           socket.emit('room-connect', { id, game });
           socket.join(id);
           console.log(socket.rooms);

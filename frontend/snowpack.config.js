@@ -9,15 +9,16 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 /** @type {require('snowpack').SnowpackUserConfig} */
 module.exports = {
   plugins: [
-    [
-      '@snowpack/plugin-babel',
-      {
-        presets: ['@babel/preset-typescript', ['@babel/preset-env', { modules: false }]],
-        plugins: ['@babel/plugin-proposal-class-properties'],
-      },
-    ],
-    '@snowpack/plugin-dotenv',
+    // [
+    //   '@snowpack/plugin-babel',
+    //   {
+    //     presets: ['@babel/preset-typescript', ['@babel/preset-env', { modules: false }]],
+    //     plugins: ['@babel/plugin-proposal-class-properties'],
+    //   },
+    // ],
     '@snowpack/plugin-svelte',
+    '@snowpack/plugin-typescript',
+    './custom-dotenv.js',
     // 'rollup-plugin-svelte'
   ],
   mount: {
