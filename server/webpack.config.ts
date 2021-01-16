@@ -29,7 +29,6 @@ export default <Configuration>{
     ...(process.env.NODEMON ? [new NodemonPlugin()] : []),
     new EnvironmentPlugin({
       WEBPACK: true,
-      LATEST_COMMIT_HASH: execSync('git rev-parse HEAD').toString().trim(),
     }),
     new ForkTsCheckerPlugin({
       async: devMode,
@@ -50,7 +49,7 @@ export default <Configuration>{
   experiments: { topLevelAwait: true },
   optimization: {
     emitOnErrors: false,
-    minimizer: devMode ? undefined : [new TerserPlugin({ terserOptions: { mangle: false } })],
+    minimizer: devMode ? undefined : [new TerserPlugin()],
   },
   module: {
     rules: [

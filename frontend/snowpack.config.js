@@ -30,10 +30,10 @@ module.exports = {
   buildOptions: {
     baseUrl: '/',
     clean: true,
-    // sourcemap: true,
+    sourcemap: true,
   },
   packageOptions: {
-    // sourcemap: true,
+    sourcemap: true,
   },
   routes: [
     {
@@ -54,7 +54,7 @@ module.exports = {
   ],
   optimize: {
     bundle: true,
-    // treeshake: true,
+    treeshake: true,
     minify: true,
     target: 'es2018',
   },
