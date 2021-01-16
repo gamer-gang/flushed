@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n f,b -c blue,green \"yarn workspace frontend run dev\" \"yarn workspace server run dev\""
+  }
+}
