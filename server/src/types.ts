@@ -4,13 +4,13 @@ export class GameState {
   stack: Card[] = [];
   turn = 0;
   started = false;
-  direction = 1;
+  order: -1 | 1 = 1;
   cardQuantity = 1;
 }
 
 export class Player {
   hand: Card[] = [];
-  constructor(public id: string) {}
+  constructor(public id: string, public name = 'Player') {}
 }
 
 export interface Card {
