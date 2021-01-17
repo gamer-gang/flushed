@@ -5,15 +5,21 @@
   import AppBar from './components/AppBar.svelte';
   import Loading from './components/Loading.svelte';
   import Home from './pages/Home.svelte';
-  import Play from './pages/Play.svelte';
 
   const routes: RouteDefinition = {
     '/': Home,
-    '/play': Play,
-    // wrap({
-    // asyncComponent: () => import('./pages/Play.svelte'),
-    // loadingComponent: Loading,
-    // }),
+    '/play': wrap({
+      asyncComponent: () => import('./pages/Play.svelte'),
+      loadingComponent: Loading,
+    }),
+    '/pregame': wrap({
+      asyncComponent: () => import('./pages/Pregame.svelte'),
+      loadingComponent: Loading,
+    }),
+    '/game': wrap({
+      asyncComponent: () => import('./pages/Game.svelte'),
+      loadingComponent: Loading,
+    }),
     '*': wrap({
       asyncComponent: () => import('./pages/NotFound.svelte'),
       loadingComponent: Loading,
@@ -28,10 +34,12 @@
 
 <style lang="scss" global>
   @import './normalize';
+  @import './colors';
+
   body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
       Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    background-color: #eee;
+    background-color: cool-gray(100);
   }
   main {
     margin: 8px;
