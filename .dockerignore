@@ -5,6 +5,7 @@ node_modules
 .gitignore
 .vsls.json
 .prettierrc.json
+.env.example
 .git
 README.md
 frontend/build
