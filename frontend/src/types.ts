@@ -34,6 +34,9 @@ export const cardValues = [
   '2',
 ] as const;
 
+export const hierarchy = Array.from([...cardValues]).reverse();
+hierarchy.push(hierarchy.shift()!);
+
 export const cardSuits = ['club', 'diamond', 'heart', 'spade'] as const;
 
 export type CardSuit = typeof cardSuits[number];
@@ -49,4 +52,5 @@ export class GameState {
   cardQuantity = 1;
   order: -1 | 1 = 1;
   passes = 0;
+  lastTurn = '';
 }

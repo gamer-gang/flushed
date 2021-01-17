@@ -16,9 +16,9 @@
   let joinIdErrors: string[] = [];
   let joinName: string | undefined = localStorage.getItem('name') ?? undefined;
   let joinNameErrors: string[] = [];
-  let spectate = false;
+  // let spectate = false;
 
-  const toggleSpectate = () => (spectate = !spectate);
+  // const toggleSpectate = () => (spectate = !spectate);
 
   const create = () => {
     createName && localStorage.setItem('name', createName);
@@ -54,37 +54,27 @@
     push(`#/pregame?id=${id}`);
   };
 
+  let snackbarMessage: string | undefined;
+  const showError = ({ error }: { error: string }) => {
+    snackbarMessage = error;
+    setTimeout(() => (snackbarMessage = undefined), 3000);
+  };
+
   socket.on('room-create', connectOnCreate);
   socket.on('room-connect', roomConnect);
   socket.on('room-spectate', roomSpectate);
+  socket.on('error', showError);
 
   onDestroy(() => {
     socket.off('room-create', connectOnCreate);
     socket.off('room-connect', roomConnect);
     socket.off('room-spectate', roomSpectate);
-  });
-
-  const showCodeError = ({ error }: { error: string }) => {};
-
-  $: {
-    if (joinName) {
-      joinNameErrors = [];
-      if (!/^[a-z0-9_\- ]*$/i.test(joinName)) {
-        joinNameErrors.push(
-          'Invalid name - letters, numbers, underscores, dashes, and spaces only'
-        );
-      }
-    }
-  }
-
-  socket.on('error', showCodeError);
-
-  onDestroy(() => {
-    socket.off('error', showCodeError);
+    socket.off('error', showError);
   });
 </script>
 
 <div id="play" in:fade={{ duration: 100 }}>
+  <div id="snackbar" class:show={!!snackbarMessage}>{snackbarMessage}</div>
   <section>
     {#if showCreate}
       <div class="create">
@@ -108,11 +98,11 @@
         <label for="join-id" class="error-label">{joinIdErrors.join('\n')}</label>
       {/if}
 
-      <div id="spectate-wrapper" on:click={toggleSpectate}>
+      <!-- <div id="spectate-wrapper" on:click={toggleSpectate}>
         <input type="checkbox" bind:checked={spectate} /> <span>Spectate</span>
-      </div>
+      </div> -->
 
-      <input id="join-name" placeholder="Your name" disabled={spectate} bind:value={joinName} />
+      <input id="join-name" placeholder="Your name" bind:value={joinName} />
       {#if joinNameErrors?.length}
         <label for="join-name" class="error-label">{joinNameErrors.join('\n')}</label>
       {/if}
@@ -126,6 +116,46 @@
   @import '../colors';
 
   $breakpoint: 760px;
+
+  #snackbar {
+    visibility: hidden;
+    background-color: cool-gray(800);
+    color: white;
+    text-align: center;
+    border-radius: 8px;
+    padding: 16px;
+    position: fixed;
+    z-index: 1;
+    left: 8px;
+    bottom: 8px;
+
+    &.show {
+      visibility: visible;
+      animation: fadein 0.5s, fadeout 0.5s 2.5s;
+    }
+  }
+
+  @keyframes fadein {
+    from {
+      bottom: 0;
+      opacity: 0;
+    }
+    to {
+      bottom: 8px;
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeout {
+    from {
+      bottom: 8px;
+      opacity: 1;
+    }
+    to {
+      bottom: 0;
+      opacity: 0;
+    }
+  }
 
   #play {
     display: flex;
@@ -164,6 +194,10 @@
         padding: 4px;
         font-size: 0.85rem;
         margin: 0px;
+      }
+
+      #join-name {
+        margin-top: 16px;
       }
 
       label {

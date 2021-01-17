@@ -1,7 +1,10 @@
 <ul>
   <section>
     <h3>Setup</h3>
-    <li>Up to 4 people can play this game (there are bots too).</li>
+    <li>
+      Up to 4 people can play this game (starting a game with less than 4 players will fill the rest
+      of the room with computers).
+    </li>
     <li>The deck is shuffled and all cards are dealt to the 4 players.</li>
     <li>The player with the 3 of spades goes first.</li>
   </section>

@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
 
-const endpoint = import.meta.env.SNOWPACK_PUBLIC_API_URL!;
+const endpoint =
+  import.meta.env.SNOWPACK_PUBLIC_API_URL ?? `${window.location.protocol}//${window.location.host}`;
 
 export const socket = io(endpoint, { transports: ['websocket', 'polling'] });
 

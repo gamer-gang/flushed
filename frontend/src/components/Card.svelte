@@ -18,6 +18,7 @@
   {style}
   bind:this={card}
   on:click
+  on:mousedown
   data-value={value}
   data-suit={suit}
 >

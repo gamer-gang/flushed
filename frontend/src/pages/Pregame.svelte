@@ -2,6 +2,7 @@
   import qs from 'qs';
   import { onDestroy } from 'svelte';
   import { push, querystring, replace } from 'svelte-spa-router';
+  import { loop_guard } from 'svelte/internal';
   import { fade } from 'svelte/transition';
   import Button from '../components/Button.svelte';
   import Loading from '../components/Loading.svelte';
@@ -18,16 +19,15 @@
 
   $: url = `${window.location.protocol}//${window.location.host}/#/play?id=${$gameId}`;
 
+  let enableTooltip = false;
   const copyUrl = () => {
-    navigator.clipboard.writeText(url);
+    navigator.clipboard.writeText(url).then(() => {
+      enableTooltip = true;
+      setTimeout(() => (enableTooltip = false), 2000);
+    });
   };
   const start = () => {
     socket.emit('room-start');
-    socket.on('room-start', (newGame: GameState) => {
-      console.log('room-start');
-      $game = newGame;
-      push('#/game');
-    });
   };
   const leave = () => {
     socket.emit('room-leave', { id: $gameId });
@@ -38,6 +38,10 @@
 
   let players: (Player | Bot)[] | undefined = $game?.players;
 
+  const onStart = (state: GameState) => {
+    $game = state;
+    push(`#/game?id=${$gameId}`);
+  };
   const onConnect = ({ id, game: newGame }: { id: string; game: GameState }) => {
     $game = newGame;
     players = newGame.players;
@@ -53,11 +57,13 @@
     socket.emit('room-connect', { id: $gameId, name: localStorage.getItem('name') ?? undefined });
   }
 
+  socket.on('room-start', onStart);
   socket.on('room-connect', onConnect);
   socket.on('room-spectate', onConnect);
   socket.on('update', updatePlayerList);
   socket.on('error', redirectIfError);
   onDestroy(() => {
+    socket.off('room-start', onStart);
     socket.off('room-connect', onConnect);
     socket.off('room-spectate', onConnect);
     socket.off('update', updatePlayerList);
@@ -70,8 +76,11 @@
     <section>
       <h3>Game <code>{$gameId}</code></h3>
       <div class="url">
-        <input value={url} />
-        <Button raised intent="primary" on:click={copyUrl}>Copy</Button>
+        <input value={url} on:keydown|preventDefault={e => e} />
+        <div class="copy" class:enable-tooltip={enableTooltip}>
+          <Button raised intent="primary" on:click={copyUrl}>Copy</Button>
+          <div class="copy-tooltip">Copied to clipboard</div>
+        </div>
       </div>
       <div class="actions">
         <Button
@@ -102,6 +111,48 @@
 
 <style lang="scss">
   @import '../colors';
+
+  .copy {
+    position: relative;
+    display: inline-block;
+
+    &.enable-tooltip .copy-tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .copy-tooltip {
+      visibility: hidden;
+
+      width: 120px;
+      background-color: cool-gray(700);
+      color: #fff;
+      text-align: center;
+      padding: 8px 0;
+      border-radius: 8px;
+
+      position: absolute;
+      z-index: 1;
+      width: 180px;
+      bottom: 100%;
+      left: 50%;
+      margin-left: -90px;
+
+      opacity: 0;
+      transition: opacity 300ms ease-in-out;
+
+      &::after {
+        content: ' ';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: cool-gray(700) transparent transparent transparent;
+      }
+    }
+  }
 
   #pregame {
     display: flex;

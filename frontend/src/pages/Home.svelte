@@ -3,6 +3,15 @@
   import cardsIcon from '../assets/cards.svg';
   import Button from '../components/Button.svelte';
   import HowToPlay from '../components/HowToPlay.svelte';
+  import { game, gameId, spectator } from '../data';
+  import { socket } from '../socket';
+
+  if ($game) {
+    socket.emit('room-leave', { id: $gameId });
+    $spectator = undefined;
+    $game = undefined;
+    $gameId = undefined;
+  }
 </script>
 
 <div id="home">

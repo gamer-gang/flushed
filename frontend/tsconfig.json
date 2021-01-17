@@ -1,13 +1,6 @@
 {
-  "include": [
-    "src/**/*",
-    "types.d.ts"
-  ],
-  "exclude": [
-    "node_modules/*",
-    "__sapper__/*",
-    "public/*"
-  ],
+  "include": ["src/**/*", "*.d.ts"],
+  "exclude": ["node_modules/*", "__sapper__/*", "public/*"],
   "compilerOptions": {
     "target": "es2017",
     "module": "es2020",
@@ -16,10 +9,7 @@
     "isolatedModules": true,
     "sourceMap": true,
     "allowSyntheticDefaultImports": true,
-    "types": [
-      "svelte",
-      "@types/snowpack-env"
-    ],
+    "types": ["svelte", "@types/snowpack-env"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

@@ -6,8 +6,10 @@
   import HowToPlay from '../components/HowToPlay.svelte';
   import { game, gameId } from '../data';
   import { socket } from '../socket';
-  import type { GameState } from '../types';
+  import { GameState, hierarchy } from '../types';
+  import Confetti from 'confetti-js';
 
+  // keep state in sync, go to home if not valid
   let state = $game!;
   if (!state) window.location.href = '/';
   $: if (!state) window.location.href = '/';
@@ -15,106 +17,157 @@
     state = $game!;
   }
 
+  let snackbarMessage: string | undefined;
+
+  // rotations of cards in the middle
   let stackRotations: number[] = [];
   const getStackRotation = (index: number) => {
     if (stackRotations[index]) return stackRotations[index];
     return (stackRotations[index] = Math.random());
   };
 
-  $: me = state.players.find(player => player.id === socket.id)!;
-  const meIndex = state.players.indexOf(me);
+  // me and the other players
+  const meIndex = state.players.findIndex(player => player.id === socket.id)!;
+  let me = state.players[meIndex];
+  $: me = state.players[meIndex];
+  let players = [...state.players.slice(meIndex! + 1), ...state.players.slice(0, meIndex)];
   $: players = [...state.players.slice(meIndex! + 1), ...state.players.slice(0, meIndex)];
 
-  // $: console.log(state);
+  // $: players, console.log(meIndex);
+  // $: console.log(state.players.slice(meIndex! + 1));
+  // $: console.log(state.players.slice(0, meIndex));
+  // $: console.log(players);
 
+  // selected cards at the bottom
   let selectedCards: number[] = [];
   let handElement: HTMLDivElement;
-  $: cardElements = handElement && Array.from(handElement.children);
-
   const resetSelected = () => {
     selectedCards = [];
-    cardElements.forEach(el => el.classList.remove('selected'));
+    Array.from(document.querySelectorAll('.hand > .card')).forEach(el =>
+      el.classList.remove('selected')
+    );
   };
 
-  const onCardClick = (
-    e: MouseEvent
-    // e: CustomEvent<MouseEvent & { currentTarget: EventTarget & HTMLDivElement }>
-  ) => {
+  // selection and deselection
+  const onCardClick = (e: MouseEvent) => {
     let cardDiv = e.target as HTMLElement;
 
-    console.log(cardElements);
-
+    // sometimes you can click the image or text on the card and not the card
+    // select the parent element in that case (which would be the card)
     if (!cardDiv.classList.contains('card')) {
       cardDiv = cardDiv.parentElement!;
     }
 
-    console.log(cardDiv);
+    // pull suit and value from dom
     const cardSuit = cardDiv.getAttribute('data-suit')!;
     const cardValue = cardDiv.getAttribute('data-value')!;
+
+    // find which card it is
     const index = me.hand.findIndex(({ suit, value }) => suit === cardSuit && value === cardValue);
 
+    // if unselected
     if (!selectedCards.includes(index)) {
+      // if card is less than the top card on the stack
+      if (
+        state.stack.length &&
+        hierarchy.indexOf(me.hand[index].value) <
+          hierarchy.indexOf(state.stack[state.stack.length - 1].value)
+      ) {
+        cardDiv.classList.add('invalid');
+        setTimeout(() => cardDiv.classList.remove('invalid'), 200);
+        return;
+      }
+
+      // if there are other cards selected and the new selected card doesn't match the rest of them
       if (selectedCards.length && me.hand[index].value !== me.hand[selectedCards[0]].value) {
         cardDiv.classList.add('invalid');
         setTimeout(() => cardDiv.classList.remove('invalid'), 200);
         return;
       }
+
+      // select the card
       cardDiv.classList.add('selected');
       selectedCards.push(index);
+      // console.log(cardDiv);
     } else {
+      // unselect the card
       cardDiv.classList.remove('selected');
       selectedCards = selectedCards.filter(i => i !== index);
     }
-
-    console.log(selectedCards);
   };
 
+  // send selected cards to the server
   const sendInput = () => {
     // if its your turn, then you either play cards or pass
     if (state.players[state.turn].id == socket.id) {
       if (selectedCards.length > 0)
-        socket.emit('input', {
-          cards: selectedCards.map(index => me.hand[index]),
-        });
+        socket.emit('input', { cards: selectedCards.map(index => me.hand[index]) });
+      // no cards selected, just pass
       else socket.emit('input', { cards: [], pass: true });
     } else {
       // you are calling a flush
       if (!selectedCards.length) return;
-      const top = state.stack.slice(state.stack.length - selectedCards.length, state.stack.length);
+      const top = state.stack.slice(state.stack.length - selectedCards.length);
       if (top.some(c => c.value !== me.hand[selectedCards[0]].value)) return;
       socket.emit('input', { cards: selectedCards.map(index => me.hand[index]), flush: true });
     }
     resetSelected();
   };
 
+  // when server sends an update, rerender
   const update = (gameState: GameState) => {
     $game = gameState;
     state = gameState;
-    console.log(gameState);
+    // console.log(gameState);
   };
 
-  socket.on('update', update);
-
+  // help dialog
   let helpShown = false;
   const toggleHelp = () => {
     helpShown = !helpShown;
   };
 
+  const showError = ({ error }: { error: string }) => {
+    snackbarMessage = error;
+    setTimeout(() => (snackbarMessage = undefined), 3000);
+  };
+
+  let confetti: Confetti;
+
+  const showWin = () => {
+    confetti.render();
+  };
+  // get update after mounting
   onMount(() => {
+    confetti = new Confetti({
+      target: 'confetti-canvas',
+      start_from_edge: true,
+      max: 250,
+      size: 1,
+      animate: true,
+      clock: 40,
+      rotate: true,
+      respawn: true,
+    });
     socket.emit('update', { id: $gameId });
   });
 
+  socket.on('update', update);
+  socket.on('error', showError);
+  socket.on('winner', showWin);
   onDestroy(() => {
     socket.off('update', update);
-    socket.emit('room-leave', { id: $gameId });
+    socket.off('error', showError);
+    socket.off('winner', showWin);
   });
 </script>
 
 <div id="game">
   <div class="bg" />
+  <div id="snackbar" class:show={!!snackbarMessage}>{snackbarMessage}</div>
   <div class="modal" on:click={toggleHelp} class:visible={helpShown}>
     <div class="help">
-      <div class="exit-button" on:click={toggleHelp}>
+      <!-- <div class="exit-button" on:click={toggleHelp}>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="30"
@@ -128,13 +181,19 @@
           <line x1="24" y1="6" x2="6" y2="24" />
           <line x1="6" y1="6" x2="24" y2="24" />
         </svg>
-      </div>
+      </div> -->
       <HowToPlay />
     </div>
   </div>
   <div class="stack" on:click={sendInput}>
     <div class="turn-indicator">
-      Turn: {state.players[state.turn].name}
+      <p>
+        {state.lastTurn ?? ''}
+      </p>
+
+      <span class:bold={state.players[state.turn].id === socket.id}>
+        Turn {state.order === 1 ? '↩' : '↪'}: {state.players[state.turn].name}
+      </span>
     </div>
     <div class="stack-cards">
       {#key state}
@@ -147,42 +206,49 @@
   <div class="hand" bind:this={handElement}>
     {#key me}
       {#each me.hand as card}
-        <Card {...card} on:click={onCardClick} />
+        <Card {...card} on:mousedown={onCardClick} />
       {/each}
     {/key}
   </div>
   <div class="label-left">
-    <span>{players[1].name}</span>
+    <span class:bold={state.players[state.turn].id === players[0]?.id}>
+      {players[0]?.name ?? '...'}
+    </span>
   </div>
   <div class="hand-left">
-    {#each players[1].hand as card}
+    {#each players[0]?.hand ?? [] as card}
       <div class="rotated-card">
         <CardBack />
       </div>
     {/each}
   </div>
   <div class="label-top">
-    <span>{players[2].name}</span>
+    <span class:bold={state.players[state.turn].id === players[1]?.id}>
+      {players[1]?.name ?? '...'}
+    </span>
   </div>
   <div class="hand-top">
     {#key state}
-      {#each players[2].hand as card}
+      {#each players[1]?.hand ?? [] as card}
         <CardBack />
       {/each}
     {/key}
   </div>
   <div class="label-right">
-    <span>{players[3].name}</span>
+    <span class:bold={state.players[state.turn].id === players[2]?.id}>
+      {players[2]?.name ?? '...'}
+    </span>
   </div>
   <div class="hand-right">
     {#key state}
-      {#each players[3].hand as card}
+      {#each players[2]?.hand ?? [] as card}
         <div class="rotated-card">
           <CardBack />
         </div>
       {/each}
     {/key}
   </div>
+  <canvas id="confetti-canvas" style="z-index: 1000" />
   <Button raised classes="help-button" on:click={toggleHelp}>Instructions</Button>
 </div>
 
@@ -190,7 +256,11 @@
   @import '../colors';
 
   :global(body) {
-    overflow: hidden;
+    overflow-x: hidden;
+  }
+
+  .bold {
+    font-weight: bold;
   }
 
   .bg {
@@ -200,6 +270,46 @@
     bottom: 0;
     left: 0;
     right: 0;
+  }
+
+  #snackbar {
+    visibility: hidden;
+    background-color: cool-gray(800);
+    color: white;
+    text-align: center;
+    border-radius: 8px;
+    padding: 16px;
+    position: fixed;
+    z-index: 1;
+    left: 8px;
+    bottom: 8px;
+
+    &.show {
+      visibility: visible;
+      animation: fadein 0.5s, fadeout 0.5s 2.5s;
+    }
+  }
+
+  @keyframes fadein {
+    from {
+      bottom: 0;
+      opacity: 0;
+    }
+    to {
+      bottom: 8px;
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeout {
+    from {
+      bottom: 8px;
+      opacity: 1;
+    }
+    to {
+      bottom: 0;
+      opacity: 0;
+    }
   }
 
   @keyframes modal-anim {
@@ -234,22 +344,6 @@
       animation: modal-anim 150ms ease-in-out forwards;
     }
     .help {
-      .exit-button {
-        position: absolute;
-        width: 48px;
-        height: 48px;
-        top: 20px;
-        right: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        transition: background-color 150ms ease-in-out;
-        cursor: pointer;
-        &:hover {
-          background-color: cool-gray(200);
-        }
-      }
       position: relative;
       border-radius: 12px;
       background-color: cool-gray(100);
@@ -376,8 +470,9 @@
     }
     .turn-indicator {
       position: absolute;
-      top: -40px;
+      top: -100px;
       max-width: 400px;
+      text-align: center;
     }
     .stack-cards {
       position: relative;
@@ -415,7 +510,7 @@
   :global(.hand .card) {
     cursor: pointer;
     z-index: 3;
-    transition: transform 150ms ease-out, background-color 150ms ease-out;
+    transition: transform 150ms ease-in-out, background-color 150ms ease-in-out;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     &.selected {
       transform: translateY(-3rem) !important;

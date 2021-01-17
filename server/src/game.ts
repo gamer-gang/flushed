@@ -3,14 +3,21 @@ import express from 'express';
 import { globalAgent, Server as HttpServer } from 'http';
 import _ from 'lodash';
 import { nanoid } from 'nanoid';
+import { resolve } from 'path';
 import { Server, Socket } from 'socket.io';
-import { Card, cardSuits, cardValues, GameState, Player, Bot } from '../../frontend/src/types';
-
-const hierarchy = Array.from(_.clone(cardValues)).reverse();
-hierarchy.push(hierarchy.shift()!);
+import {
+  Card,
+  cardSuits,
+  cardValues,
+  GameState,
+  Player,
+  Bot,
+  hierarchy,
+} from '../../frontend/src/types';
+import morgan from 'morgan';
 
 export class GameServer {
-  public static readonly port: number = parseInt(process.env.PORT || '8080');
+  public static readonly port: number | string = process.env.PORT!;
   app: express.Application = express();
   server: HttpServer = new HttpServer(this.app);
   io: Server = new Server(this.server, {
@@ -23,10 +30,11 @@ export class GameServer {
     this.io.on('connection', (socket: Socket) => {
       socket.onAny((...args: any[]) => {
         const [event] = args;
-        console.log(`<-- ${event} ${socket.id}`);
+
+        console.log(`<-- ${new Date().toISOString()} ${event} ${socket.id}`);
       });
 
-      console.log(`<-- connection ${socket.id}`);
+      console.log(`<-- ${new Date().toISOString()} connection ${socket.id}`);
 
       // spectator attempts to join a room
       socket.on('room-spectate', ({ id }: { id: string }) => {
@@ -57,8 +65,9 @@ export class GameServer {
           socket.join(id);
           this.emitToRoom(id, 'update', game);
         } else {
-          game.spectators.push(socket.id);
-          socket.emit('room-spectate', { id, game });
+          return socket.emit('error', { error: 'Room connect: room full' });
+          // game.spectators.push(socket.id);
+          // socket.emit('room-spectate', { id, game });
         }
       });
 
@@ -85,38 +94,42 @@ export class GameServer {
       socket.on(
         'input',
         ({ cards, flush, pass }: { cards: Card[]; flush?: boolean; pass?: boolean }) => {
-          console.log(socket.rooms.values());
-          console.log(cards);
+          // console.log(socket.rooms.values());
+          // console.log(cards);
           const id = Array.from(socket.rooms.values())[1];
           const game = this.state.get(id);
 
           if (!game) return socket.emit('error', { error: 'Card input: invalid room code' });
           if (game.players[game.turn].id != socket.id && !flush) return;
 
+          game.lastTurn = '';
           const player = game.players.find(player => player.id === socket.id)!;
 
           if (pass) {
             game.passes++;
             this.advanceTurn(id);
+            game.lastTurn = `${player.name} passed`;
             return this.emitToRoom(id, 'update', game);
           }
 
           // if the cards you play aren't all the same type, return err
           if (cards.some(c => c.value !== cards[0].value))
-            return socket.emit('error', { error: 'Illegal move' });
+            return socket.emit('error', {
+              error: 'Illegal move: only cards of the same value are allowed',
+            });
 
           // if card value is less than top, return err
           if (
             hierarchy.indexOf(cards[0].value) <
             hierarchy.indexOf(game.stack[game.stack.length - 1]?.value)
           )
-            return socket.emit('error', { error: 'Illegal move' });
+            return socket.emit('error', { error: 'Illegal move: card value too low' });
 
           // if you are flushing, check top cards and see if they match yours
           if (flush) {
             const top = game.stack.slice(game.stack.length - cards.length, game.stack.length);
             if (top.some(c => c.value !== cards[0].value))
-              return socket.emit('error', { error: 'Illegal move' });
+              return socket.emit('error', { error: 'Illegal move: not a valid flush' });
             return this.flush(id);
           }
 
@@ -125,41 +138,61 @@ export class GameServer {
             game.cardQuantity = cards.length;
           }
 
+          let message = `${player.name} played ${cards.length} ${cards[0].value}${
+            cards.length === 1 ? '' : 's'
+          }`;
+
           // take last 4 cards in stack - number of cards you play, then see if they are all the same
-          const top4 = [...game.stack.slice(game.stack.length - (5 - cards.length)), ...cards];
-          if (top4.length === 4 && top4.every(card => card.value === top4[0].value))
+          const top4 = [...game.stack.slice(game.stack.length - (4 - cards.length)), ...cards];
+          // console.log(top4);
+          if (top4.length === 4 && top4.every(card => card.value === top4[0].value)) {
+            for (const card of cards) {
+              // console.log(card);
+              const index = player.hand.findIndex(
+                ({ suit, value }) => suit === card.suit && value === card.value
+              );
+              // console.log('removing ' + index);
+              player.hand.splice(index, 1);
+            }
+            message += ' (flushed)';
+            game.lastTurn = message;
             return this.flush(id);
+          }
 
           // if the number of cards you played doesn't match the number of cards being played, return err
           if (cards.length !== game.cardQuantity)
-            return socket.emit('error', { error: 'Illegal move' });
+            return socket.emit('error', { error: 'Illegal move: invalid number of cards' });
 
           // take cards out of your hand that you played
           for (const card of cards) {
-            console.log(card);
+            // console.log(card);
             const index = player.hand.findIndex(
               ({ suit, value }) => suit === card.suit && value === card.value
             );
-            console.log('removing ' + index);
+            // console.log('removing ' + index);
             player.hand.splice(index, 1);
           }
 
           // if you play a 2, flush
-          if (cards[0].value === '2') return this.flush(id);
+          if (cards[0].value === '2') {
+            message += ' (flushed)';
+            game.lastTurn = message;
+            return this.flush(id);
+          }
+
+          // if top card matches your cards, reverse turn order
+          if (game.stack.length && cards[0].value === game.stack[game.stack.length - 1].value) {
+            this.emitToRoom(id, 'reverse', this.state);
+            message += ' (reversed)';
+            game.order *= -1;
+          }
+
+          game.passes = 0;
 
           // add cards to stack
           game.stack.push(...cards);
 
-          // if top card matches your cards, either flush or reverse turn order
-          if (cards[0].value === game.stack[game.stack.length - 1].value) {
-            // flush if top 4 cards are same
-            const top = game.stack.slice(game.stack.length - 5);
-            if (top.length === 4 && top.every(c => c.value === cards[0].value))
-              return this.flush(id);
-            // reverse order
-            this.emitToRoom(id, 'reverse', this.state);
-            game.order *= -1;
-          }
+          game.lastTurn = message;
           this.advanceTurn(id);
         }
       );
@@ -174,14 +207,17 @@ export class GameServer {
         const game = this.state.get(id);
         if (!game) return socket.emit('error', { error: 'Room leave: invalid room code' });
         socket.leave(id);
-        console.log(`<-- room-leave ${socket.id}`);
+        console.log(`<-- ${new Date().toISOString()} room-leave ${socket.id}`);
         game.players = game.players.filter(player => player.id !== socket.id);
-        if (game.players.length == 0) this.state.delete(id);
+        if (!game.players.some(p => p instanceof Player)) {
+          console.log('deleting room ' + this.getGameIdFromPlayerId(id));
+          this.state.delete(id);
+        }
       });
 
       // player leaves
       socket.on('disconnect', () => {
-        console.log(`<-- disconnect ${socket.id}`);
+        console.log(`<-- ${new Date().toISOString()} disconnect ${socket.id}`);
         const gameId = this.getGameIdFromPlayerId(socket.id);
         if (!gameId) return;
         socket.leave(gameId);
@@ -197,14 +233,26 @@ export class GameServer {
       });
     });
 
-    // dev only - allow requests from snowpack dev server
-    process.env.NODE_ENV === 'development' && this.app.use(cors());
+    process.env.NODE_ENV === 'development'
+      ? // dev only - allow requests from snowpack dev server
+        this.app.use(cors())
+      : // serve built files
+        this.app.use(express.static(resolve(__dirname, '../../frontend/build')));
+
+    // logging
+    this.app.use(morgan('combined'));
 
     this.app.get('/', (req, res) => {
-      res.send('OK');
+      res.sendFile(resolve(__dirname, '../../frontend/build/index.html'));
     });
 
-    this.listen();
+    this.app.get('*', (req, res) => {
+      res.status(404).sendFile(resolve(__dirname, '../../frontend/build/notfound.html'));
+    });
+
+    this.listen().then(() => {
+      console.log(`Listening at http://localhost:${GameServer.port}`);
+    });
   }
 
   listen(): Promise<void> {
@@ -277,6 +325,12 @@ export class GameServer {
     if (game.players[game.turn] instanceof Bot) {
       this.makeBotMove(game.players[game.turn].id);
     }
+    // if you have no cards left, you win!
+    if (!game.players[game.turn].hand.length) {
+      this.emitToRoom(id, 'update', game);
+      game.lastTurn = `${game.players[game.turn].name} wins!`;
+      return this.emitToRoom(id, 'winner');
+    }
   }
 
   // change turn number and emit update
@@ -286,6 +340,7 @@ export class GameServer {
     // if you have no cards left, you win!
     if (!game.players[game.turn].hand.length) {
       this.emitToRoom(id, 'update', game);
+      game.lastTurn = `${game.players[game.turn].name} wins!`;
       return this.emitToRoom(id, 'winner');
     }
     // if turn is the first player and order is negative, turn should be last player
@@ -298,12 +353,12 @@ export class GameServer {
     this.emitToRoom(id, 'update', game);
 
     // if 3 ppl pass, you should flush
-    if (game.passes === 3) {
+    if (game.passes > 2) {
       game.passes = 0;
       this.flush(id);
     }
 
-    if (game.players[game.turn] instanceof Bot) {
+    if (game.players[game.turn].id.startsWith('bot-')) {
       this.makeBotMove(game.players[game.turn].id);
     }
   }
@@ -311,15 +366,17 @@ export class GameServer {
   // given a botid, make the bot move
   makeBotMove(id: string): any {
     const gameId = this.getGameIdFromPlayerId(id)!;
-    console.log(`${gameId}: bot ${id} is trying to make turn`);
+    // console.log(`${gameId}: bot ${id} is trying to make turn`);
     const game = this.state.get(gameId);
     if (!game) return console.log('Bot error: game not exist!!!');
+    game.lastTurn = '';
     const bot = game.players.find(player => player.id == id);
     if (!bot) return console.log('Bot error: id wronk');
     // bot decides to give up if theres doubles/triples
     if (game.cardQuantity > 1) {
       game.passes++;
-      return setTimeout(() => this.advanceTurn(gameId), 1000);
+      game.lastTurn = `${bot.name} passed`;
+      return setTimeout(() => this.advanceTurn(gameId), 2000);
     }
 
     const values = Array.from(_.clone(cardValues)).reverse();
@@ -331,12 +388,22 @@ export class GameServer {
         values.indexOf(card.value) < values.indexOf(game.stack[game.stack.length - 1].value)
       )
         continue;
-      console.log(`bot trying to play ${JSON.stringify(card)}`);
+      // console.log(`bot trying to play ${JSON.stringify(card)}`);
       bot.hand.splice(index, 1);
+      game.lastTurn = `${bot.name} played 1 ${card.value}`;
+      if (game.stack[game.stack.length - 1]?.value === card.value) {
+        game.lastTurn += ' (reversed)';
+        game.order *= -1;
+      }
+      if (card.value == '2') {
+        game.lastTurn += ' (flushed)';
+        return setTimeout(() => this.flush(gameId), 2000);
+      }
+      game.passes = 0;
       game.stack.push(card);
       break;
     }
-    if (game.stack[game.stack.length - 1]?.value == '2') setTimeout(() => this.flush(gameId), 1000);
-    else setTimeout(() => this.advanceTurn(gameId), 1000);
+
+    setTimeout(() => this.advanceTurn(gameId), 2000);
   }
 }

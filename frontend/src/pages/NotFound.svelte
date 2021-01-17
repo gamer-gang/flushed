@@ -13,12 +13,15 @@
 </div>
 
 <style lang="scss">
+  @import '../colors';
+
   :global(body) {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
       Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     margin: 0;
-    background-color: #eee;
+    background-color: cool-gray(100);
   }
+
   div {
     margin: 8px;
     margin-top: 64px;
