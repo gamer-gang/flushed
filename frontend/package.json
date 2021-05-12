@@ -17,7 +17,7 @@
     "concurrently": "^5.3.0",
     "confetti-js": "^0.0.18",
     "nanoid": "^3.1.20",
-    "postcss": "^8.2.4",
+    "postcss": "^8.2.10",
     "postcss-cli": "^8.3.1",
     "qs": "^6.9.6",
     "rollup-plugin-svelte": "^7.0.0",
